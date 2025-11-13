@@ -10,6 +10,7 @@ import Log from "@foxglove/log";
 import { LOCAL_STORAGE_STUDIO_LAYOUT_KEY } from "@foxglove/studio-base/constants/localStorageKeys";
 import {
   LayoutState,
+  SelectedLayout,
   useCurrentLayoutActions,
   useCurrentLayoutSelector,
 } from "@foxglove/studio-base/context/CurrentLayoutContext";
@@ -17,10 +18,28 @@ import { LayoutData } from "@foxglove/studio-base/context/CurrentLayoutContext/a
 import { usePlayerSelection } from "@foxglove/studio-base/context/PlayerSelectionContext";
 import { defaultLayout } from "@foxglove/studio-base/providers/CurrentLayoutProvider/defaultLayout";
 import { migratePanelsState } from "@foxglove/studio-base/services/migrateLayout";
+import { LAYOUT } from "@foxglove/studio-base/constants/layout";
+import { diagnostics } from "@foxglove/studio-base/layouts/diagnostics";
+import { visualization } from "@foxglove/studio-base/layouts/visualization";
 
 function selectLayoutData(state: LayoutState) {
   return state.selectedLayout?.data;
 }
+
+function onMessageHandler(event: MessageEvent, setCurrentLayout: (newLayout: SelectedLayout | undefined) => void) {
+  const { type, layout } = event.data;
+  if (type === "updateLayout") {
+    if (layout === LAYOUT.DIAGNOSTICS || layout === LAYOUT.VISUALIZATION) {
+      const layoutData = layout === LAYOUT.DIAGNOSTICS ? diagnostics : visualization;
+      const serializedLayoutData = JSON.stringify(layoutData);
+      assert(serializedLayoutData);
+      localStorage.setItem(LOCAL_STORAGE_STUDIO_LAYOUT_KEY, serializedLayoutData);
+
+      const data = migratePanelsState((layoutData as LayoutData) || defaultLayout);
+      setCurrentLayout({ data });
+    }
+  }
+};
 
 const log = Log.getLogger(__filename);
 
@@ -47,6 +66,14 @@ export function CurrentLayoutLocalStorageSyncAdapter(): JSX.Element {
     assert(serializedLayoutData);
     localStorage.setItem(LOCAL_STORAGE_STUDIO_LAYOUT_KEY, serializedLayoutData);
   }, [debouncedLayoutData]);
+
+  useEffect(() => {
+    window.addEventListener("message", (event: MessageEvent) => onMessageHandler(event, setCurrentLayout));
+
+    return () => {
+      window.removeEventListener("message", (event: MessageEvent) => onMessageHandler(event, setCurrentLayout));
+    };
+  }, [setCurrentLayout]);
 
   useEffect(() => {
     log.debug(`Reading layout from local storage: ${LOCAL_STORAGE_STUDIO_LAYOUT_KEY}`);
