@@ -20,7 +20,6 @@ import { defaultLayout } from "@foxglove/studio-base/providers/CurrentLayoutProv
 import { migratePanelsState } from "@foxglove/studio-base/services/migrateLayout";
 import { LAYOUT } from "@foxglove/studio-base/constants/layout";
 import { diagnostics } from "@foxglove/studio-base/layouts/diagnostics";
-import { visualization } from "@foxglove/studio-base/layouts/visualization";
 
 function selectLayoutData(state: LayoutState) {
   return state.selectedLayout?.data;
@@ -30,7 +29,7 @@ function onMessageHandler(event: MessageEvent, setCurrentLayout: (newLayout: Sel
   const { type, layout } = event.data;
   if (type === "updateLayout") {
     if (layout === LAYOUT.DIAGNOSTICS || layout === LAYOUT.VISUALIZATION) {
-      const layoutData = layout === LAYOUT.DIAGNOSTICS ? diagnostics : visualization;
+      const layoutData = layout === LAYOUT.DIAGNOSTICS ? diagnostics : defaultLayout;
       const serializedLayoutData = JSON.stringify(layoutData);
       assert(serializedLayoutData);
       localStorage.setItem(LOCAL_STORAGE_STUDIO_LAYOUT_KEY, serializedLayoutData);
