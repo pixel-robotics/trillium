@@ -25,6 +25,7 @@ import { PlaybackSpeed } from "@foxglove/studio-base/players/types";
 import { defaultLayout } from "@foxglove/studio-base/providers/CurrentLayoutProvider/defaultLayout";
 import { migratePanelsState } from "@foxglove/studio-base/services/migrateLayout";
 import { downloadTextFile } from "@foxglove/studio-base/util/download";
+import { fetchUrlLayout, getUrlLayoutName } from "@foxglove/studio-base/util/urlLayout";
 
 import {
   LeftSidebarItemKey,
@@ -84,7 +85,7 @@ export type WorkspaceActions = {
     // This will perform a browser download of the current layout to a file
     exportToFile: () => void;
     // Reset layout.
-    // This will reset to the original layout
+    // This will reset to the original layout, the one named in the URL if there is one
     reset: () => void;
   };
 };
@@ -172,10 +173,12 @@ export function useWorkspaceActions(): WorkspaceActions {
 
   }, [appContext, isMounted, setCurrentLayout]);
 
-  const resetLayout = useCallback(() => {
-    const layoutData = migratePanelsState(defaultLayout);
+  const resetLayout = useCallbackWithToast(async () => {
+    const urlLayoutName = getUrlLayoutName();
+    const layoutData = migratePanelsState(
+      urlLayoutName != undefined ? await fetchUrlLayout(urlLayoutName) : defaultLayout,
+    );
     setCurrentLayout({ data: layoutData });
-
   }, [setCurrentLayout]);
 
   const exportLayoutToFile = useCallback(() => {

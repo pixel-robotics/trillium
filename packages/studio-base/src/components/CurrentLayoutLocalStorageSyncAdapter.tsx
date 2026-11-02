@@ -3,7 +3,8 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 import assert from "assert";
-import { useEffect } from "react";
+import { useSnackbar } from "notistack";
+import { useEffect, useState } from "react";
 import { useDebounce } from "use-debounce";
 
 import Log from "@foxglove/log";
@@ -20,6 +21,7 @@ import { defaultLayout } from "@foxglove/studio-base/providers/CurrentLayoutProv
 import { migratePanelsState } from "@foxglove/studio-base/services/migrateLayout";
 import { LAYOUT } from "@foxglove/studio-base/constants/layout";
 import { diagnostics } from "@foxglove/studio-base/layouts/diagnostics";
+import { fetchUrlLayout, getUrlLayoutName } from "@foxglove/studio-base/util/urlLayout";
 
 function selectLayoutData(state: LayoutState) {
   return state.selectedLayout?.data;
@@ -44,9 +46,13 @@ const log = Log.getLogger(__filename);
 
 export function CurrentLayoutLocalStorageSyncAdapter(): JSX.Element {
   const { selectedSource } = usePlayerSelection();
+  const { enqueueSnackbar } = useSnackbar();
 
   const { setCurrentLayout } = useCurrentLayoutActions();
   const currentLayoutData = useCurrentLayoutSelector(selectLayoutData);
+
+  // A layout named in the URL comes from the server on every load and is never kept in the browser
+  const [urlLayoutName] = useState(getUrlLayoutName);
 
   useEffect(() => {
     if (selectedSource?.sampleLayout) {
@@ -57,24 +63,41 @@ export function CurrentLayoutLocalStorageSyncAdapter(): JSX.Element {
   const [debouncedLayoutData] = useDebounce(currentLayoutData, 250, { maxWait: 500 });
 
   useEffect(() => {
-    if (!debouncedLayoutData) {
+    if (!debouncedLayoutData || urlLayoutName != undefined) {
       return;
     }
 
     const serializedLayoutData = JSON.stringify(debouncedLayoutData);
     assert(serializedLayoutData);
     localStorage.setItem(LOCAL_STORAGE_STUDIO_LAYOUT_KEY, serializedLayoutData);
-  }, [debouncedLayoutData]);
+  }, [debouncedLayoutData, urlLayoutName]);
 
   useEffect(() => {
+    if (urlLayoutName != undefined) {
+      return;
+    }
+
     window.addEventListener("message", (event: MessageEvent) => onMessageHandler(event, setCurrentLayout));
 
     return () => {
       window.removeEventListener("message", (event: MessageEvent) => onMessageHandler(event, setCurrentLayout));
     };
-  }, [setCurrentLayout]);
+  }, [setCurrentLayout, urlLayoutName]);
 
   useEffect(() => {
+    if (urlLayoutName != undefined) {
+      log.debug(`Loading layout ${urlLayoutName} named in the URL`);
+      fetchUrlLayout(urlLayoutName)
+        .then((layoutData) => {
+          setCurrentLayout({ data: migratePanelsState(layoutData) });
+        })
+        .catch((error: unknown) => {
+          log.error(error);
+          enqueueSnackbar(String(error), { variant: "error" });
+        });
+      return;
+    }
+
     log.debug(`Reading layout from local storage: ${LOCAL_STORAGE_STUDIO_LAYOUT_KEY}`);
 
     const serializedLayoutData = localStorage.getItem(LOCAL_STORAGE_STUDIO_LAYOUT_KEY);
@@ -89,7 +112,7 @@ export function CurrentLayoutLocalStorageSyncAdapter(): JSX.Element {
       serializedLayoutData ? (JSON.parse(serializedLayoutData) as LayoutData) : defaultLayout,
     );
     setCurrentLayout({ data: layoutData });
-  }, [setCurrentLayout]);
+  }, [enqueueSnackbar, setCurrentLayout, urlLayoutName]);
 
   return <></>;
 }
