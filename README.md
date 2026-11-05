@@ -25,6 +25,18 @@ docker run --rm -it -p 8080:8080 trillium
 
 For 2 or 3, visit http://localhost:8080 in your browser.
 
+### Layouts in the docker container
+
+- A layout file mounted at `/foxglove/default-layout.json` is the layout of a first visit.
+- Layout files in a directory mounted at `/src/layouts` open by name: `?layout=<name>` in the page URL loads
+  `<name>.json` from there. The page loads it again on every visit, does not keep the browser's copy and
+  ignores `updateLayout` messages from an embedding page. View → Reset layout loads the file again.
+
+```
+docker run --rm -it -p 8080:8080 -v $PWD/layouts:/src/layouts:ro trillium
+```
+then open http://localhost:8080/?layout=my_layout for `layouts/my_layout.json`.
+
 For more ways to build and run the code, see CONTRIBUTING.md
 
 ## Desktop

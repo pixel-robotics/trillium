@@ -1,5 +1,6 @@
-# Build stage
-FROM node:22 AS build
+# Build stage, on the build host's platform: its output is platform independent, so an arm64 image
+# builds on x86 without emulation
+FROM --platform=$BUILDPLATFORM node:22 AS build
 WORKDIR /src
 COPY . ./
 
